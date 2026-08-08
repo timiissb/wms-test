@@ -23,7 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import InboundOrder, InboundOrderItem, Inventory, Location, Product
+from app.models import InboundOrder, InboundOrderItem, Inventory, Location, Product, Warehouse
 from app.schemas import InboundOrderCreate
 
 router = APIRouter(tags=["库存 & 入库"])
@@ -175,19 +175,68 @@ def get_inbound_order(order_id: int, db: Session = Depends(get_db)):
 @router.get("/api/inventory")
 def query_inventory(
     keyword: str | None = Query(default=None, description="商品名称/SKU 模糊搜索"),
-    warehouse_id: int | None = Query(default=None, description="仓库ID"),
+    warehouseId: int | None = Query(default=None, description="仓库ID"),
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
+    pageSize: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     """
-    库存查询 — 候选人实现
+    库存查询 — 任务2
 
-    要求：
-    1. 支持按 keyword 模糊搜索（商品名称/SKU）
-    2. 支持按 warehouse_id 筛选
-    3. 支持分页
-    4. 返回关联的商品名称、SKU、仓库名称
+    多表 JOIN（Inventory → Product / Location → Warehouse）取商品名、SKU、仓库名；
+    条件全部下推到 SQL，只 SELECT 响应需要的列，避免全表扫描与 N+1 查询。
     """
-    # TODO: 候选人实现
-    raise HTTPException(status_code=501, detail="请实现库存查询功能（任务2）")
+    # 显式 JOIN 三表：inventory→products（取名称/SKU）、inventory→locations→warehouses（取仓库名）
+    query = (
+        db.query(
+            Inventory.product_id,
+            Product.name.label("product_name"),
+            Product.sku.label("sku"),
+            Inventory.location_code,
+            Warehouse.name.label("warehouse_name"),
+            Inventory.quantity,
+            Inventory.updated_at,
+        )
+        .join(Product, Inventory.product_id == Product.id)
+        .join(Location, Inventory.location_code == Location.code)
+        .join(Warehouse, Location.warehouse_id == Warehouse.id)
+    )
+
+    # 可选条件筛选（keyword 走 LIKE 模糊，warehouseId 走 locations.warehouse_id 索引）
+    if keyword:
+        query = query.filter(
+            (Product.name.contains(keyword)) | (Product.sku.contains(keyword))
+        )
+    if warehouseId is not None:
+        query = query.filter(Location.warehouse_id == warehouseId)
+
+    # total 在分页条件之前统计（count 在子查询上聚合，不触发全表取行）
+    total = query.count()
+    rows = (
+        query.order_by(Inventory.id.desc())
+        .offset((page - 1) * pageSize)
+        .limit(pageSize)
+        .all()
+    )
+
+    return {
+        "code": 200,
+        "message": "success",
+        "data": {
+            "list": [
+                {
+                    "productId": r.product_id,
+                    "productName": r.product_name,
+                    "sku": r.sku,
+                    "locationCode": r.location_code,
+                    "warehouseName": r.warehouse_name,
+                    "quantity": r.quantity,
+                    "updatedAt": r.updated_at,
+                }
+                for r in rows
+            ],
+            "total": total,
+            "page": page,
+            "pageSize": pageSize,
+        },
+    }
