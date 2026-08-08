@@ -63,13 +63,14 @@ export default function ProductsPage() {
       if (editingProduct) {
         await updateProduct(editingProduct.id, { name: values.name, unit: values.unit })
         message.success('更新成功')
+        // 编辑是就地修改，数据条数不变，应停留在当前页，不重置页码
       } else {
         await createProduct({ name: values.name, sku: values.sku, unit: values.unit })
         message.success('创建成功')
+        // 新增商品追加在列表末尾，回到第 1 页便于从首页查看
+        setCurrentPage(1)
       }
       setModalOpen(false)
-      // ️ BUG: 编辑后不保留当前页码
-      setCurrentPage(1)
       await loadProducts()
     } catch (e: any) {
       if (e.response) message.error(e.response?.data?.message || '操作失败')
@@ -80,6 +81,9 @@ export default function ProductsPage() {
     try {
       await deleteProduct(id)
       message.success('删除成功')
+      // 删除后若当前页已空（删掉了最后一页的最后一条），页码回退，避免停留在空页
+      const maxPage = Math.max(1, Math.ceil((products.length - 1) / pageSize))
+      if (currentPage > maxPage) setCurrentPage(maxPage)
       await loadProducts()
     } catch (e: any) {
       message.error(e.response?.data?.message || '删除失败')
