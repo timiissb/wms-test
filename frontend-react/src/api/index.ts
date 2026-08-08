@@ -72,14 +72,35 @@ export const getInventory = (params: {
 
 // ============ 入库单（候选人实现） ============
 
+// 字段与接口文档一致（camelCase），后端 Pydantic 已通过 alias 接收/返回 camelCase
+
 export interface InboundItemRequest {
   productId: number
   quantity: number
   locationCode: string
 }
 
+export interface InboundOrderItemResponse {
+  productId: number
+  productName: string | null
+  quantity: number
+  locationCode: string
+}
+
+export interface InboundOrder {
+  id: number
+  orderNo: string
+  supplierName: string
+  status: string
+  items: InboundOrderItemResponse[]
+  createdAt: string
+}
+
 export const createInboundOrder = (data: {
   supplierName: string
   items: InboundItemRequest[]
 }) =>
-  api.post('/inbound-orders', data)
+  api.post<any, { code: number; message: string; data: InboundOrder }>(
+    '/inbound-orders',
+    data
+  )

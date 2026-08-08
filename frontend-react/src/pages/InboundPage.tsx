@@ -1,79 +1,239 @@
 /**
  * ============================================
- *  入库管理页 — 候选人需要实现（任务1）
+ *  入库管理页 — 任务1 实现
  * ============================================
  *
  * 需求：
  * 1. 表单：供应商名称 + 入库明细列表
  * 2. 明细行：商品下拉搜索 → 仓库 → 库位级联 → 数量
- * 3. 提交
+ * 3. 提交（调用 POST /api/inbound-orders，字段 camelCase）
  *
- * 建议使用 AI 协作，参考 ProductsPage.tsx 的实现风格
+ * 参考 ProductsPage.tsx 的实现风格
  */
-import { useState } from 'react'
-import { Form, Input, Button, Select, InputNumber, Space, message } from 'antd'
+import { useState, useEffect } from 'react'
+import { Input, Button, Select, InputNumber, Space, message } from 'antd'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons'
-import { createInboundOrder } from '@/api'
+import {
+  createInboundOrder,
+  getProducts,
+  getWarehouses,
+  getLocations,
+  type Product,
+  type Warehouse,
+  type Location,
+} from '@/api'
+
+interface InboundItem {
+  productId?: number
+  warehouseId?: number
+  locationCode?: string
+  quantity: number
+}
+
+const productOptions = (products: Product[]) =>
+  products.map((p) => ({ label: `${p.name}（${p.sku}）`, value: p.id }))
 
 export default function InboundPage() {
   const [supplierName, setSupplierName] = useState('')
-  const [items, setItems] = useState<any[]>([])
+  const [items, setItems] = useState<InboundItem[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [locationsMap, setLocationsMap] = useState<Record<number, Location[]>>({})
   const [submitting, setSubmitting] = useState(false)
 
-  // TODO: 候选人实现逻辑
+  useEffect(() => {
+    loadProducts()
+    loadWarehouses()
+  }, [])
+
+  const loadProducts = async () => {
+    try {
+      const res = await getProducts()
+      setProducts(res.data)
+    } catch (e: any) {
+      message.error('加载商品失败: ' + (e.response?.data?.message || e.message))
+    }
+  }
+
+  const loadWarehouses = async () => {
+    try {
+      const res = await getWarehouses()
+      setWarehouses(res.data)
+    } catch (e: any) {
+      message.error('加载仓库失败: ' + (e.response?.data?.message || e.message))
+    }
+  }
+
+  const loadLocations = async (warehouseId: number) => {
+    // 已加载过的仓库库位直接复用缓存，避免重复请求
+    if (locationsMap[warehouseId]) return
+    try {
+      const res = await getLocations(warehouseId)
+      setLocationsMap((prev) => ({ ...prev, [warehouseId]: res.data }))
+    } catch (e: any) {
+      message.error('加载库位失败: ' + (e.response?.data?.message || e.message))
+    }
+  }
+
+  const updateItem = (index: number, patch: Partial<InboundItem>) => {
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)))
+  }
 
   const addItem = () => {
-    setItems([...items, { productId: undefined, quantity: 1, locationCode: '' }])
+    setItems((prev) => [
+      ...prev,
+      { productId: undefined, warehouseId: undefined, locationCode: undefined, quantity: 1 },
+    ])
   }
 
   const removeItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index))
+    setItems((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleWarehouseChange = (index: number, warehouseId: number) => {
+    // 切换仓库后清空已选库位，重新加载该仓库库位
+    updateItem(index, { warehouseId, locationCode: undefined })
+    loadLocations(warehouseId)
   }
 
   const handleSubmit = async () => {
-    // TODO: 候选人实现
-    message.info('请实现入库功能（任务1）')
+    if (!supplierName.trim()) {
+      message.warning('请输入供应商名称')
+      return
+    }
+    if (items.length === 0) {
+      message.warning('请添加入库明细')
+      return
+    }
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i]
+      if (!it.productId) {
+        message.warning(`第 ${i + 1} 行：请选择商品`)
+        return
+      }
+      if (!it.locationCode) {
+        message.warning(`第 ${i + 1} 行：请选择库位`)
+        return
+      }
+      if (!it.quantity || it.quantity < 1) {
+        message.warning(`第 ${i + 1} 行：数量必须大于 0`)
+        return
+      }
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await createInboundOrder({
+        supplierName: supplierName.trim(),
+        items: items.map((it) => ({
+          productId: it.productId!,
+          quantity: it.quantity,
+          locationCode: it.locationCode!,
+        })),
+      })
+      message.success(`入库单创建成功，单号：${res.data.orderNo}`)
+      // 提交成功后清空表单
+      setSupplierName('')
+      setItems([])
+    } catch (e: any) {
+      message.error(e.response?.data?.message || e.message || '提交失败')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <div>
       <h3> 入库管理</h3>
 
-      <Form layout="vertical" style={{ maxWidth: 800 }}>
-        <Form.Item label="供应商名称" required>
-          <Input
-            placeholder="请输入供应商名称"
-            value={supplierName}
-            onChange={(e) => setSupplierName(e.target.value)}
-          />
-        </Form.Item>
+      <div style={{ marginBottom: 16 }}>
+        <Input
+          placeholder="请输入供应商名称"
+          value={supplierName}
+          onChange={(e) => setSupplierName(e.target.value)}
+          style={{ width: 300 }}
+          maxLength={200}
+        />
+        <Button type="primary" icon={<PlusOutlined />} onClick={addItem} style={{ marginLeft: 12 }}>
+          添加明细
+        </Button>
+      </div>
 
-        <Form.Item label="入库明细">
-          <Button type="primary" icon={<PlusOutlined />} onClick={addItem}>添加明细</Button>
-        </Form.Item>
-      </Form>
+      {items.length === 0 && (
+        <div style={{ padding: 24, color: '#999', background: '#fff', borderRadius: 8 }}>
+          请点击"添加明细"按钮添加入库商品
+        </div>
+      )}
 
       {items.map((item, index) => (
-        <div key={index} style={{ marginBottom: 12, display: 'flex', gap: 12, alignItems: 'center' }}>
-          {/* TODO: 商品下拉选择 */}
-          {/* TODO: 仓库 → 库位级联 */}
-          {/* TODO: 数量输入 */}
+        <div
+          key={index}
+          style={{
+            marginBottom: 12,
+            padding: 16,
+            background: '#fff',
+            borderRadius: 8,
+            display: 'flex',
+            gap: 12,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ color: '#999', width: 48 }}>{index + 1}</span>
+          <Select
+            placeholder="选择商品"
+            showSearch
+            allowClear
+            style={{ width: 220 }}
+            value={item.productId}
+            onChange={(v) => updateItem(index, { productId: v })}
+            options={productOptions(products)}
+            optionFilterProp="label"
+            filterOption={(input, option) =>
+              (option?.label as string).toLowerCase().includes(input.toLowerCase())
+            }
+          />
+          <Select
+            placeholder="选择仓库"
+            allowClear
+            style={{ width: 150 }}
+            value={item.warehouseId}
+            onChange={(v) => v && handleWarehouseChange(index, v)}
+            options={warehouses.map((w) => ({ label: w.name, value: w.id }))}
+          />
+          <Select
+            placeholder="选择库位"
+            allowClear
+            style={{ width: 170 }}
+            value={item.locationCode}
+            onChange={(v) => updateItem(index, { locationCode: v })}
+            disabled={!item.warehouseId}
+            options={(locationsMap[item.warehouseId!] || []).map((l) => ({
+              label: l.code,
+              value: l.code,
+            }))}
+          />
+          <InputNumber
+            placeholder="数量"
+            min={1}
+            precision={0}
+            value={item.quantity}
+            onChange={(v) => updateItem(index, { quantity: v || 0 })}
+            style={{ width: 100 }}
+          />
           <Button danger icon={<DeleteOutlined />} onClick={() => removeItem(index)} />
         </div>
       ))}
 
-      <Button
-        type="primary"
-        size="large"
-        loading={submitting}
-        onClick={handleSubmit}
-        disabled={items.length === 0}
-      >
-        提交入库单
-      </Button>
-
-      {items.length === 0 && (
-        <div style={{ marginTop: 24, color: '#999' }}>请点击"添加明细"按钮添加入库商品</div>
+      {items.length > 0 && (
+        <Button
+          type="primary"
+          size="large"
+          loading={submitting}
+          onClick={handleSubmit}
+        >
+          提交入库单
+        </Button>
       )}
     </div>
   )
