@@ -1,6 +1,6 @@
 import { Layout, Menu } from 'antd'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { AppstoreOutlined, InboxOutlined, ImportOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, InboxOutlined, ImportOutlined, ExportOutlined } from '@ant-design/icons'
 
 const { Header, Content } = Layout
 
@@ -12,6 +12,7 @@ function App() {
     { key: '/products', icon: <AppstoreOutlined />, label: '商品管理' },
     { key: '/inventory', icon: <InboxOutlined />, label: '库存查询' },
     { key: '/inbound', icon: <ImportOutlined />, label: '入库管理' },
+    { key: '/outbound', icon: <ExportOutlined />, label: '出库管理' },
   ]
 
   return (

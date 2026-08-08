@@ -3,6 +3,7 @@ import App from './App'
 import ProductsPage from './pages/ProductsPage'
 import InventoryPage from './pages/InventoryPage'
 import InboundPage from './pages/InboundPage'
+import OutboundPage from './pages/OutboundPage'
 
 const router = createBrowserRouter([
   {
@@ -13,6 +14,7 @@ const router = createBrowserRouter([
       { path: 'products', element: <ProductsPage /> },
       { path: 'inventory', element: <InventoryPage /> },
       { path: 'inbound', element: <InboundPage /> },
+      { path: 'outbound', element: <OutboundPage /> },
     ],
   },
 ])
