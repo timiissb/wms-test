@@ -23,3 +23,5 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# 任务B：默认显示测试内的 print 输出，方便直接 `pytest` 查看执行过程
+addopts = "-s"
