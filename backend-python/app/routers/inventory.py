@@ -50,22 +50,22 @@ def _next_order_seq(db: Session) -> int:
 
 
 def _build_order_data(order: InboundOrder) -> dict:
-    """构造入库单响应数据（含明细与商品名）"""
+    """构造入库单响应数据（字段对齐接口文档 API_SPEC.md，camelCase）"""
     return {
         "id": order.id,
-        "order_no": order.order_no,
-        "supplier_name": order.supplier_name,
+        "orderNo": order.order_no,
+        "supplierName": order.supplier_name,
         "status": order.status,
         "items": [
             {
-                "product_id": it.product_id,
-                "product_name": it.product.name if it.product else None,
+                "productId": it.product_id,
+                "productName": it.product.name if it.product else None,
                 "quantity": it.quantity,
-                "location_code": it.location_code,
+                "locationCode": it.location_code,
             }
             for it in order.items
         ],
-        "created_at": order.created_at,
+        "createdAt": order.created_at,
     }
 
 
@@ -158,7 +158,7 @@ def list_inbound_orders(
             "list": [_build_order_data(o) for o in orders],
             "total": total,
             "page": page,
-            "page_size": page_size,
+            "pageSize": page_size,
         },
     }
 

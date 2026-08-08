@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ============ 通用 ============
@@ -51,15 +51,23 @@ class ProductResponse(BaseModel):
 # ============ 入库单（候选人实现） ============
 
 class InboundItemRequest(BaseModel):
-    """入库明细请求"""
-    product_id: int = Field(..., gt=0, description="商品ID")
+    """入库明细请求（接口文档字段为 camelCase，见 API_SPEC.md）"""
+    model_config = ConfigDict(populate_by_name=True)
+
+    product_id: int = Field(..., gt=0, alias="productId", description="商品ID")
     quantity: int = Field(..., gt=0, description="入库数量")
-    location_code: str = Field(..., min_length=1, max_length=50, description="目标库位编码")
+    location_code: str = Field(
+        ..., min_length=1, max_length=50, alias="locationCode", description="目标库位编码"
+    )
 
 
 class InboundOrderCreate(BaseModel):
-    """创建入库单请求"""
-    supplier_name: str = Field(..., min_length=1, max_length=200, description="供应商名称")
+    """创建入库单请求（接口文档字段为 camelCase，见 API_SPEC.md）"""
+    model_config = ConfigDict(populate_by_name=True)
+
+    supplier_name: str = Field(
+        ..., min_length=1, max_length=200, alias="supplierName", description="供应商名称"
+    )
     items: list[InboundItemRequest] = Field(..., min_length=1, description="入库明细")
 
 
