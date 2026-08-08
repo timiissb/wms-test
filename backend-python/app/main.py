@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
-from app.routers import products, warehouses, inventory
+from app.routers import products, warehouses, inventory, outbound
 
 # 创建所有表
 Base.metadata.create_all(bind=engine)
@@ -26,6 +26,7 @@ app.add_middleware(
 app.include_router(products.router)
 app.include_router(warehouses.router)
 app.include_router(inventory.router)
+app.include_router(outbound.router)
 
 
 @app.get("/")

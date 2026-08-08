@@ -85,3 +85,26 @@ class InventoryResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ============ 出库单（选做任务A） ============
+
+class OutboundItemRequest(BaseModel):
+    """出库明细请求（接口文档字段为 camelCase，见 API_SPEC.md）"""
+    model_config = ConfigDict(populate_by_name=True)
+
+    product_id: int = Field(..., gt=0, alias="productId", description="商品ID")
+    quantity: int = Field(..., gt=0, description="出库数量")
+    location_code: str = Field(
+        ..., min_length=1, max_length=50, alias="locationCode", description="出库库位编码"
+    )
+
+
+class OutboundOrderCreate(BaseModel):
+    """创建出库单请求（接口文档字段为 camelCase，见 API_SPEC.md）"""
+    model_config = ConfigDict(populate_by_name=True)
+
+    customer_name: str = Field(
+        ..., min_length=1, max_length=200, alias="customerName", description="客户名称"
+    )
+    items: list[OutboundItemRequest] = Field(..., min_length=1, description="出库明细")

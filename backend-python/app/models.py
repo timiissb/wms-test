@@ -84,3 +84,30 @@ class InboundOrderItem(Base):
 
     order = relationship("InboundOrder", back_populates="items")
     product = relationship("Product")
+
+
+class OutboundOrder(Base):
+    """出库单 — 选做任务A"""
+    __tablename__ = "outbound_orders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_no = Column(String(50), nullable=False, unique=True)
+    customer_name = Column(String(200))
+    status = Column(String(20), default="DRAFT")
+    created_at = Column(DateTime, default=datetime.now)
+
+    items = relationship("OutboundOrderItem", back_populates="order")
+
+
+class OutboundOrderItem(Base):
+    """出库单明细"""
+    __tablename__ = "outbound_order_items"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_id = Column(Integer, ForeignKey("outbound_orders.id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    location_code = Column(String(50), nullable=False)
+
+    order = relationship("OutboundOrder", back_populates="items")
+    product = relationship("Product")
