@@ -1,16 +1,18 @@
 /**
  * ============================================
- *  库存查询页 — 任务2 实现
+ *  库存查询页 — 任务2 实现 + 任务C 性能优化
  * ============================================
  *
- * 需求：
- * 1. 搜索栏：商品名称/SKU 模糊搜索（防抖）+ 仓库下拉筛选
- * 2. 表格展示 + 分页（后端分页，参数 camelCase 与接口文档一致）
- * 3. 库存数量 < 10 的行红色高亮
+ * 优化方案（任务C）：
+ * 1. 后端分页：只请求当前页（page/pageSize），500+ 条数据也只传输一页
+ * 2. 防抖搜索：keyword 停止输入 500ms 后才查询，避免每次按键请求后端
+ * 3. 状态同步 URL：keyword / warehouseId / page 写入 URL query，
+ *    刷新或返回列表时保持筛选条件与页码，不跳回第 1 页
  *
  * 参考 ProductsPage.tsx 的实现风格
  */
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Table, Input, Select, Button, message } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -22,18 +24,33 @@ const pageSize = 20
 const LOW_STOCK_THRESHOLD = 10
 
 export default function InventoryPage() {
-  const [keyword, setKeyword] = useState('')
-  const [warehouseId, setWarehouseId] = useState<number | undefined>()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // 从 URL query 恢复筛选/分页状态（刷新、返回后保持）
+  const [keyword, setKeyword] = useState(searchParams.get('keyword') ?? '')
+  const [warehouseId, setWarehouseId] = useState<number | undefined>(
+    searchParams.get('warehouseId') ? Number(searchParams.get('warehouseId')) : undefined
+  )
+  const [page, setPage] = useState<number>(Math.max(1, Number(searchParams.get('page') || 1)))
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<InventoryItem[]>([])
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   // 用于跳过首次渲染时防抖 effect 的重复查询
   const isFirstRender = useRef(true)
 
+  // 将筛选/分页状态同步到 URL query（replace 避免历史堆栈膨胀）
+  const syncUrl = (kw: string, whId: number | undefined, p: number) => {
+    const params: Record<string, string> = {}
+    if (kw) params.keyword = kw
+    if (whId !== undefined) params.warehouseId = String(whId)
+    if (p > 1) params.page = String(p)
+    setSearchParams(params, { replace: true })
+  }
+
   const fetchInventory = async (kw: string, whId: number | undefined, targetPage = 1) => {
     setLoading(true)
+    syncUrl(kw, whId, targetPage)
     try {
       const res = await getInventory({
         keyword: kw || undefined,
@@ -51,7 +68,7 @@ export default function InventoryPage() {
     }
   }
 
-  // 首次加载仓库列表 + 库存数据
+  // 首次加载：仓库列表 + 按 URL 初始状态查询
   useEffect(() => {
     const loadWarehouses = async () => {
       try {
@@ -62,7 +79,7 @@ export default function InventoryPage() {
       }
     }
     loadWarehouses()
-    fetchInventory('', undefined, 1)
+    fetchInventory(keyword, warehouseId, page)
   }, [])
 
   // keyword 输入防抖：停止输入 500ms 后自动查询（重置到第 1 页）
