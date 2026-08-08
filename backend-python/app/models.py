@@ -68,6 +68,8 @@ class InboundOrder(Base):
     status = Column(String(20), default="DRAFT")
     created_at = Column(DateTime, default=datetime.now)
 
+    items = relationship("InboundOrderItem", back_populates="order")
+
 
 class InboundOrderItem(Base):
     """入库单明细"""
@@ -79,5 +81,5 @@ class InboundOrderItem(Base):
     quantity = Column(Integer, nullable=False)
     location_code = Column(String(50), nullable=False)
 
-    order = relationship("InboundOrder")
+    order = relationship("InboundOrder", back_populates="items")
     product = relationship("Product")
