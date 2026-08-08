@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Product
+from app.models import Inventory, Product
 from app.schemas import ProductCreate, ProductUpdate, ProductResponse
 
 router = APIRouter(prefix="/api/products", tags=["商品管理"])
@@ -67,11 +67,14 @@ def update_product(product_id: int, req: ProductUpdate, db: Session = Depends(ge
 @router.delete("/{product_id}")
 def delete_product(product_id: int, db: Session = Depends(get_db)):
     """删除商品"""
-    # ️ BUG 预埋点：没有校验该商品是否有关联库存
-    # 候选人需要在任务3中发现并修复此问题
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="商品不存在")
+
+    # 修复（任务3 Bug1）：删除前校验是否有关联库存，避免删除后库存数据孤立。
+    # SQLite 默认未开启外键约束，不能依赖数据库外键兜底，必须在应用层校验。
+    if db.query(Inventory).filter(Inventory.product_id == product_id).first():
+        raise HTTPException(status_code=400, detail="该商品存在关联库存，无法删除")
 
     db.delete(product)
     db.commit()
