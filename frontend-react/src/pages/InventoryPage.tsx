@@ -18,10 +18,9 @@ import { SearchOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
 import { getInventory, type InventoryItem, getWarehouses, type Warehouse } from '@/api'
+import { isLowStock, buildInventoryQuery } from '@/utils/inventory'
 
 const pageSize = 20
-// 库存低于该值的行红色高亮
-const LOW_STOCK_THRESHOLD = 10
 
 export default function InventoryPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -52,12 +51,9 @@ export default function InventoryPage() {
     setLoading(true)
     syncUrl(kw, whId, targetPage)
     try {
-      const res = await getInventory({
-        keyword: kw || undefined,
-        warehouseId: whId,
-        page: targetPage,
-        pageSize,
-      })
+      const res = await getInventory(
+        buildInventoryQuery({ keyword: kw, warehouseId: whId, page: targetPage, pageSize })
+      )
       setData(res.data.list)
       setTotal(res.data.total)
       setPage(targetPage)
@@ -102,8 +98,6 @@ export default function InventoryPage() {
     fetchInventory(keyword, v, 1)
   }
 
-  const isLowStock = (record: InventoryItem) => record.quantity < LOW_STOCK_THRESHOLD
-
   const columns: ColumnsType<InventoryItem> = [
     { title: '商品名称', dataIndex: 'productName' },
     { title: 'SKU', dataIndex: 'sku', width: 150 },
@@ -114,7 +108,9 @@ export default function InventoryPage() {
       dataIndex: 'quantity',
       width: 100,
       render: (qty: number, record) => (
-        <span style={{ color: isLowStock(record) ? '#ff4d4f' : undefined, fontWeight: 600 }}>
+        <span
+          style={{ color: isLowStock(record.quantity) ? '#ff4d4f' : undefined, fontWeight: 600 }}
+        >
           {qty}
         </span>
       ),
@@ -160,7 +156,7 @@ export default function InventoryPage() {
         rowKey={(record) => `${record.productId}-${record.locationCode}`}
         loading={loading}
         onRow={(record) =>
-          isLowStock(record) ? { style: { background: '#fff1f0' } } : {}
+          isLowStock(record.quantity) ? { style: { background: '#fff1f0' } } : {}
         }
         pagination={{
           current: page,
