@@ -23,8 +23,9 @@ export default function ProductsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
+  // 每页条数也可切换（10/20/50/100），存 state 而非常量
+  const [pageSize, setPageSize] = useState(10)
   const [form] = Form.useForm()
-  const pageSize = 10
 
   const loadProducts = async () => {
     setLoading(true)
@@ -43,7 +44,7 @@ export default function ProductsPage() {
   const pagedProducts = useMemo(() => {
     const start = (currentPage - 1) * pageSize
     return products.slice(start, start + pageSize)
-  }, [products, currentPage])
+  }, [products, currentPage, pageSize])
 
   const handleAdd = () => {
     setEditingProduct(null)
@@ -133,8 +134,14 @@ export default function ProductsPage() {
           current: currentPage,
           pageSize,
           total: products.length,
-          onChange: (page) => setCurrentPage(page),
+          showSizeChanger: true,
+          pageSizeOptions: [10, 20, 50, 100],
           showTotal: (total) => `共 ${total} 条`,
+          onChange: (page, ps) => {
+            // 翻页或切换每页条数：同时更新页码与条数（切换条数时 AntD 重置回第 1 页）
+            setCurrentPage(page)
+            setPageSize(ps)
+          },
         }}
       />
 
