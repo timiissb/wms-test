@@ -20,8 +20,6 @@ import type { ColumnsType } from 'antd/es/table'
 import { getInventory, type InventoryItem, getWarehouses, type Warehouse } from '@/api'
 import { isLowStock, buildInventoryQuery } from '@/utils/inventory'
 
-const pageSize = 20
-
 export default function InventoryPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -31,6 +29,10 @@ export default function InventoryPage() {
     searchParams.get('warehouseId') ? Number(searchParams.get('warehouseId')) : undefined
   )
   const [page, setPage] = useState<number>(Math.max(1, Number(searchParams.get('page') || 1)))
+  // 每页条数也可切换（10/20/50/100），存 state 并从 URL 恢复
+  const [pageSize, setPageSize] = useState<number>(
+    Math.max(1, Number(searchParams.get('pageSize') || 20))
+  )
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<InventoryItem[]>([])
   const [total, setTotal] = useState(0)
@@ -39,24 +41,26 @@ export default function InventoryPage() {
   const isFirstRender = useRef(true)
 
   // 将筛选/分页状态同步到 URL query（replace 避免历史堆栈膨胀）
-  const syncUrl = (kw: string, whId: number | undefined, p: number) => {
+  const syncUrl = (kw: string, whId: number | undefined, p: number, size: number) => {
     const params: Record<string, string> = {}
     if (kw) params.keyword = kw
     if (whId !== undefined) params.warehouseId = String(whId)
     if (p > 1) params.page = String(p)
+    if (size !== 20) params.pageSize = String(size)
     setSearchParams(params, { replace: true })
   }
 
-  const fetchInventory = async (kw: string, whId: number | undefined, targetPage = 1) => {
+  const fetchInventory = async (kw: string, whId: number | undefined, targetPage = 1, size = pageSize) => {
     setLoading(true)
-    syncUrl(kw, whId, targetPage)
+    syncUrl(kw, whId, targetPage, size)
     try {
       const res = await getInventory(
-        buildInventoryQuery({ keyword: kw, warehouseId: whId, page: targetPage, pageSize })
+        buildInventoryQuery({ keyword: kw, warehouseId: whId, page: targetPage, pageSize: size })
       )
       setData(res.data.list)
       setTotal(res.data.total)
       setPage(targetPage)
+      setPageSize(size)
     } catch (e: any) {
       message.error('加载库存失败: ' + (e.response?.data?.message || e.message))
     } finally {
@@ -162,8 +166,14 @@ export default function InventoryPage() {
           current: page,
           pageSize,
           total,
-          onChange: (p) => fetchInventory(keyword, warehouseId, p),
+          showSizeChanger: true,
+          pageSizeOptions: [10, 20, 50, 100],
           showTotal: (t) => `共 ${t} 条`,
+          onChange: (p, ps) => {
+            // 切换每页条数或翻页时，同步 pageSize 并重新查询（切换条数时 AntD 会重置回第 1 页）
+            setPageSize(ps)
+            fetchInventory(keyword, warehouseId, p, ps)
+          },
         }}
         locale={{ emptyText: '暂无库存数据，请先完成入库操作' }}
       />
